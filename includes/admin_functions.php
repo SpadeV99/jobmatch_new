@@ -92,21 +92,21 @@ function getAdminDashboardStats() {
 function getRecentJobs($limit = 5) {
     global $conn;
     
-    // Check if jobs table has a 'status' column
+    // Check if status column exists
     $check_column = $conn->query("SHOW COLUMNS FROM jobs LIKE 'status'");
     
     if ($check_column->num_rows > 0) {
-        // If status column exists, include it
-        $sql = "SELECT j.*, ep.company_name 
+        // If status column exists, include it in the query
+        $sql = "SELECT j.id, j.title, j.posted_date, j.status, ep.company_name 
                 FROM jobs j
                 LEFT JOIN employer_profiles ep ON j.employer_id = ep.user_id
-                ORDER BY j.created_at DESC LIMIT ?";
+                ORDER BY j.posted_date DESC LIMIT ?";
     } else {
-        // Otherwise exclude it
-        $sql = "SELECT j.id, j.title, j.created_at, ep.company_name, 'unknown' as status
+        // If status column doesn't exist, don't include it
+        $sql = "SELECT j.id, j.title, j.posted_date, 'unknown' as status, ep.company_name 
                 FROM jobs j
                 LEFT JOIN employer_profiles ep ON j.employer_id = ep.user_id
-                ORDER BY j.created_at DESC LIMIT ?";
+                ORDER BY j.posted_date DESC LIMIT ?";
     }
     
     $stmt = $conn->prepare($sql);
@@ -311,26 +311,48 @@ function deleteUser($user_id) {
 }
 
 /**
- * Get jobs for admin with filtering and pagination
+ * Get jobs for admin panel with filtering options
  */
 function getJobsForAdmin($filter_status = '', $search_term = '', $limit = 20, $offset = 0) {
     global $conn;
     
-    $sql = "SELECT j.*, ep.company_name 
-            FROM jobs j
-            LEFT JOIN employer_profiles ep ON j.employer_id = ep.user_id";
+    // Check if jobs table has status column
+    $check_status = $conn->query("SHOW COLUMNS FROM jobs LIKE 'status'");
+    $has_status = $check_status->num_rows > 0;
     
+    // Check if jobs table has is_featured column
+    $check_featured = $conn->query("SHOW COLUMNS FROM jobs LIKE 'is_featured'");
+    $has_featured = $check_featured->num_rows > 0;
+    
+    // Query to select jobs with proper columns
+    $sql = "SELECT j.id, j.title, j.location, j.employer_id, j.posted_date, 
+            ep.company_name";
+    
+    // Add status and is_featured conditionally if they exist
+    if ($has_status) {
+        $sql .= ", j.status";
+    }
+    
+    if ($has_featured) {
+        $sql .= ", j.is_featured";
+    }
+    
+    $sql .= " FROM jobs j
+              LEFT JOIN employer_profiles ep ON j.employer_id = ep.user_id";
+    
+    // Initialize arrays for where clauses and parameters
+    $where_clauses = [];
     $params = [];
     $types = "";
     
-    $where_clauses = [];
-    
-    if (!empty($filter_status)) {
+    // Add status filter if column exists and filter is provided
+    if ($has_status && !empty($filter_status)) {
         $where_clauses[] = "j.status = ?";
         $params[] = $filter_status;
         $types .= "s";
     }
     
+    // Add search term if provided
     if (!empty($search_term)) {
         $search_param = "%" . $search_term . "%";
         $where_clauses[] = "(j.title LIKE ? OR ep.company_name LIKE ? OR j.location LIKE ?)";
@@ -340,11 +362,13 @@ function getJobsForAdmin($filter_status = '', $search_term = '', $limit = 20, $o
         $types .= "sss";
     }
     
+    // Add WHERE clause if there are any filters
     if (!empty($where_clauses)) {
         $sql .= " WHERE " . implode(" AND ", $where_clauses);
     }
     
-    $sql .= " ORDER BY j.created_at DESC LIMIT ? OFFSET ?";
+    // Order by posted_date
+    $sql .= " ORDER BY j.posted_date DESC LIMIT ? OFFSET ?";
     $params[] = $limit;
     $params[] = $offset;
     $types .= "ii";
@@ -360,6 +384,16 @@ function getJobsForAdmin($filter_status = '', $search_term = '', $limit = 20, $o
     
     $jobs = [];
     while ($row = $result->fetch_assoc()) {
+        // Add default values for missing columns
+        if (!isset($row['status'])) {
+            $row['status'] = 'unknown';
+        }
+        if (!isset($row['is_featured'])) {
+            $row['is_featured'] = 0;
+        }
+        if (!isset($row['created_at'])) {
+            $row['created_at'] = $row['posted_date'];
+        }
         $jobs[] = $row;
     }
     
@@ -367,26 +401,31 @@ function getJobsForAdmin($filter_status = '', $search_term = '', $limit = 20, $o
 }
 
 /**
- * Count jobs for pagination
+ * Count jobs for pagination with the same filters as getJobsForAdmin
  */
 function countJobsForAdmin($filter_status = '', $search_term = '') {
     global $conn;
     
-    $sql = "SELECT COUNT(*) as total 
-            FROM jobs j
-            LEFT JOIN employer_profiles ep ON j.employer_id = ep.user_id";
+    // Start the query
+    $sql = "SELECT COUNT(*) as total FROM jobs j LEFT JOIN employer_profiles ep ON j.employer_id = ep.user_id";
     
+    // Initialize arrays for where clauses and parameters
+    $where_clauses = [];
     $params = [];
     $types = "";
     
-    $where_clauses = [];
+    // Check if the status column exists
+    $check_status = $conn->query("SHOW COLUMNS FROM jobs LIKE 'status'");
+    $has_status = $check_status->num_rows > 0;
     
-    if (!empty($filter_status)) {
+    // Add status filter if column exists and filter is provided
+    if ($has_status && !empty($filter_status)) {
         $where_clauses[] = "j.status = ?";
         $params[] = $filter_status;
         $types .= "s";
     }
     
+    // Add search term if provided
     if (!empty($search_term)) {
         $search_param = "%" . $search_term . "%";
         $where_clauses[] = "(j.title LIKE ? OR ep.company_name LIKE ? OR j.location LIKE ?)";
@@ -396,6 +435,7 @@ function countJobsForAdmin($filter_status = '', $search_term = '') {
         $types .= "sss";
     }
     
+    // Add WHERE clause if there are any filters
     if (!empty($where_clauses)) {
         $sql .= " WHERE " . implode(" AND ", $where_clauses);
     }
@@ -410,7 +450,7 @@ function countJobsForAdmin($filter_status = '', $search_term = '') {
     $result = $stmt->get_result();
     $row = $result->fetch_assoc();
     
-    return $row['total'];
+    return $row['total'] ?? 0;
 }
 
 /**

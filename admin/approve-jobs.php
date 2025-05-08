@@ -127,7 +127,9 @@ include '../includes/admin_header.php';
                                 <td><?php echo htmlspecialchars($job['company_name']); ?></td>
                                 <td><?php echo htmlspecialchars($job['location']); ?></td>
                                 <td>
-                                    <?php if ($job['status'] == 'pending'): ?>
+                                    <?php if (!isset($job['status']) || $job['status'] == 'unknown'): ?>
+                                        <span class="badge bg-secondary">Unknown</span>
+                                    <?php elseif ($job['status'] == 'pending'): ?>
                                         <span class="badge bg-warning">Pending</span>
                                     <?php elseif ($job['status'] == 'active'): ?>
                                         <span class="badge bg-success">Active</span>
@@ -137,6 +139,8 @@ include '../includes/admin_header.php';
                                         <span class="badge bg-secondary">Expired</span>
                                     <?php elseif ($job['status'] == 'filled'): ?>
                                         <span class="badge bg-info">Filled</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-secondary"><?php echo ucfirst($job['status']); ?></span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
@@ -146,12 +150,12 @@ include '../includes/admin_header.php';
                                         <span class="badge bg-light text-dark">No</span>
                                     <?php endif; ?>
                                 </td>
-                                <td><?php echo date('M j, Y', strtotime($job['created_at'])); ?></td>
+                                <td><?php echo isset($job['created_at']) ? date('M j, Y', strtotime($job['created_at'])) : date('M j, Y', strtotime($job['posted_date'] ?? 'now')); ?></td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
                                         <a href="job-details.php?id=<?php echo $job['id']; ?>" class="btn btn-outline-primary">View</a>
                                         
-                                        <?php if ($job['status'] == 'pending'): ?>
+                                        <?php if (!isset($job['status']) || $job['status'] == 'pending' || $job['status'] == 'unknown'): ?>
                                             <form method="post" style="display: inline;">
                                                 <input type="hidden" name="job_id" value="<?php echo $job['id']; ?>">
                                                 <input type="hidden" name="action" value="approve">

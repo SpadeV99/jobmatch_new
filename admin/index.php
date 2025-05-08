@@ -114,7 +114,7 @@ include '../includes/admin_header.php';
                                                     <span class="badge bg-secondary"><?php echo ucfirst($job['status']); ?></span>
                                                 <?php endif; ?>
                                             </td>
-                                            <td><?php echo date('M j, Y', strtotime($job['created_at'])); ?></td>
+                                            <td><?php echo !empty($job['posted_date']) ? date('M j, Y', strtotime($job['posted_date'])) : 'Not available'; ?>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
