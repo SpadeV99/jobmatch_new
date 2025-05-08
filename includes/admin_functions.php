@@ -596,4 +596,20 @@ function unfeatureJob($job_id) {
     
     return $stmt->execute();
 }
+
+/**
+ * Delete job listing
+ */
+function deleteJob($job_id) {
+    global $conn;
+    // First delete any applications for this job
+    $stmt = $conn->prepare("DELETE FROM job_applications WHERE job_id = ?");
+    $stmt->bind_param("i", $job_id);
+    $stmt->execute();
+    
+    // Then delete the job
+    $stmt = $conn->prepare("DELETE FROM jobs WHERE id = ?");
+    $stmt->bind_param("i", $job_id);
+    return $stmt->execute();
+}
 ?>

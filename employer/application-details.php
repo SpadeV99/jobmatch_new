@@ -144,12 +144,11 @@ include '../includes/header.php';
                             <?php if (!empty($application['resume_path'])): ?>
                                 <p><a href="<?php echo '../' . $application['resume_path']; ?>" target="_blank" class="btn btn-outline-primary">View Resume</a></p>
                             <?php endif; ?>
-                            <a href="../messages/compose.php?recipient_id=<?php echo $application['jobseeker_id']; ?>" class="btn btn-outline-primary">
-                                <i class="bi bi-chat-dots"></i> Message Applicant
-                            </a>
-                            <a href="../messages/new-message.php?recipient_id=<?php echo $application['user_id']; ?>" class="btn btn-outline-primary mb-3">
-                                <i class="bi bi-chat-dots"></i> Message Applicant
-                            </a>
+                            <?php if (!empty($application['user_id'])): ?>
+                                <a href="../messages/compose.php?recipient_id=<?php echo $application['user_id']; ?>" class="btn btn-outline-primary mb-3">
+                                    <i class="bi bi-chat-dots"></i> Message Applicant
+                                </a>
+                            <?php endif; ?>
                         </div>
                         <div class="col-md-6">
                             <h5>Application Details</h5>

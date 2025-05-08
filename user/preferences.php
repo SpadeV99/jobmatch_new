@@ -68,13 +68,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     // Update profile preferences
     $sql = "UPDATE jobseeker_profiles SET 
-            preferred_locations = ?, 
-            preferred_job_types = ?, 
-            salary_expectation = ? 
-            WHERE user_id = ?";
-    
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssdi", $preferred_locations, $preferred_job_types, $salary_expectation, $user_id);
+        preferred_locations = ?, 
+        preferred_job_type = ?, 
+        salary_expectation = ? 
+        WHERE user_id = ?";
+
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("ssdi", $preferred_locations, $preferred_job_types, $salary_expectation, $user_id);
     
     if ($stmt->execute()) {
         // Process criteria weights
@@ -263,28 +263,28 @@ include '../includes/header.php';
                             <div class="mb-3">
                                 <label class="form-label">Preferred Job Types</label>
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="preferred_job_types[]" value="full-time" id="job-type-fulltime"
-                                        <?php echo (strpos($profile['preferred_job_types'] ?? '', 'full-time') !== false) ? 'checked' : ''; ?>>
-                                    <label class="form-check-label" for="job-type-fulltime">Full Time</label>
-                                </div>
+    <input class="form-check-input" type="checkbox" name="preferred_job_types[]" value="full-time" id="job-type-fulltime"
+        <?php echo (strpos($profile['preferred_job_type'] ?? '', 'full-time') !== false) ? 'checked' : ''; ?>>
+    <label class="form-check-label" for="job-type-fulltime">Full Time</label>
+</div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="preferred_job_types[]" value="part-time" id="job-type-parttime"
-                                        <?php echo (strpos($profile['preferred_job_types'] ?? '', 'part-time') !== false) ? 'checked' : ''; ?>>
+                                        <?php echo (strpos($profile['preferred_job_type'] ?? '', 'part-time') !== false) ? 'checked' : ''; ?>>
                                     <label class="form-check-label" for="job-type-parttime">Part Time</label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="preferred_job_types[]" value="contract" id="job-type-contract"
-                                        <?php echo (strpos($profile['preferred_job_types'] ?? '', 'contract') !== false) ? 'checked' : ''; ?>>
+                                        <?php echo (strpos($profile['preferred_job_type'] ?? '', 'contract') !== false) ? 'checked' : ''; ?>>
                                     <label class="form-check-label" for="job-type-contract">Contract</label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="preferred_job_types[]" value="internship" id="job-type-internship"
-                                        <?php echo (strpos($profile['preferred_job_types'] ?? '', 'internship') !== false) ? 'checked' : ''; ?>>
+                                        <?php echo (strpos($profile['preferred_job_type'] ?? '', 'internship') !== false) ? 'checked' : ''; ?>>
                                     <label class="form-check-label" for="job-type-internship">Internship</label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="preferred_job_types[]" value="remote" id="job-type-remote"
-                                        <?php echo (strpos($profile['preferred_job_types'] ?? '', 'remote') !== false) ? 'checked' : ''; ?>>
+                                        <?php echo (strpos($profile['preferred_job_type'] ?? '', 'remote') !== false) ? 'checked' : ''; ?>>
                                     <label class="form-check-label" for="job-type-remote">Remote</label>
                                 </div>
                             </div>

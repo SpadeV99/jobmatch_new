@@ -59,14 +59,22 @@ include '../includes/header.php';
                 <div class="list-group list-group-flush">
                     <?php if ($user_type === 'jobseeker'): ?>
                         <a href="../user/dashboard.php" class="list-group-item list-group-item-action">Dashboard</a>
-                        <a href="../user/profile.php" class="list-group-item list-group-item-action">Profile</a>
-                        <a href="../user/applications.php" class="list-group-item list-group-item-action">Applications</a>
+                        <a href="../user/profile.php" class="list-group-item list-group-item-action">My Profile</a>
+                        <a href="../user/applications.php" class="list-group-item list-group-item-action">Job Applications</a>
+                        <a href="../user/interviews.php" class="list-group-item list-group-item-action">Interviews</a>
+                        <a href="../user/saved-jobs.php" class="list-group-item list-group-item-action">Saved Jobs</a>
+                        <a href="../user/recommendations.php" class="list-group-item list-group-item-action">Recommendations</a>
+                        <a href="../user/preferences.php" class="list-group-item list-group-item-action">Job Preferences</a>
                     <?php else: ?>
-                        <a href="../employer/dashboard.php" class="list-group-item list-group-item-action">Dashboard</a>
-                        <a href="../employer/profile.php" class="list-group-item list-group-item-action">Company Profile</a>
+                        <a href="../employer/index.php" class="list-group-item list-group-item-action">Dashboard</a>
+                        <a href="../employer/company-profile.php" class="list-group-item list-group-item-action">Company Profile</a>
+                        <a href="../employer/post-job.php" class="list-group-item list-group-item-action">Post a Job</a>
                         <a href="../employer/manage-jobs.php" class="list-group-item list-group-item-action">Manage Jobs</a>
+                        <a href="../employer/manage-applications.php" class="list-group-item list-group-item-action">Applications</a>
+                        <a href="../employer/interviews.php" class="list-group-item list-group-item-action">Interviews</a>
                     <?php endif; ?>
                     <a href="index.php" class="list-group-item list-group-item-action active">Messages</a>
+                    <a href="../notifications/index.php" class="list-group-item list-group-item-action">Notifications</a>
                 </div>
             </div>
         </div>
@@ -75,7 +83,7 @@ include '../includes/header.php';
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">My Conversations</h5>
-                    <a href="new-message.php" class="btn btn-primary btn-sm">New Message</a>
+                    <a href="compose.php" class="btn btn-primary btn-sm">New Message</a>
                 </div>
                 <div class="card-body">
                     <?php if ($conversations->num_rows > 0): ?>

@@ -1,14 +1,15 @@
 <?php
+
 require_once '../config/db_connect.php';
 require_once '../includes/functions.php';
 require_once '../includes/admin_functions.php';
 
-// Start session if not already started
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Check if user is logged in and is an admin
+
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'admin') {
     header("Location: ../login.php");
     exit();
@@ -18,7 +19,7 @@ $user_id = $_SESSION['user_id'];
 $base_path = '../';
 $active_page = 'approve-jobs';
 
-// Check if job ID is provided
+
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     header("Location: approve-jobs.php");
     exit();
@@ -26,52 +27,44 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 
 $job_id = intval($_GET['id']);
 
-// Get job details
+
 $stmt = $conn->prepare("SELECT j.*, ep.company_name 
                        FROM jobs j 
                        LEFT JOIN employer_profiles ep ON j.employer_id = ep.user_id
                        WHERE j.id = ?");
-$stmt->bind_param("i", $job_id);
-$stmt->execute();
-$result = $stmt->get_result();
+                        $stmt->bind_param("i", $job_id);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
 
-if ($result->num_rows === 0) {
-    header("Location: approve-jobs.php");
-    exit();
-}
+                        if ($result->num_rows === 0) {
+                            header("Location: approve-jobs.php");
+                            exit();
+                        }
 
-$job = $result->fetch_assoc();
+                        $job = $result->fetch_assoc();
 
-// Handle form submission
-$success = '';
-$error = '';
+                        // Handle form submission
+                        $success = '';
+                        $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Get form data
-    $title = trim($_POST['title']);
-    $description = trim($_POST['description']);
-    $requirements = trim($_POST['requirements']);
-    $responsibilities = trim($_POST['responsibilities']);
-    $location = trim($_POST['location']);
-    $job_type = trim($_POST['job_type']);
-    $salary_min = !empty($_POST['salary_min']) ? trim($_POST['salary_min']) : null;
-    $salary_max = !empty($_POST['salary_max']) ? trim($_POST['salary_max']) : null;
-    $status = trim($_POST['status']);
+    // Get form data with proper null checks
+    $title = isset($_POST['title']) ? trim($_POST['title']) : '';
+    $description = isset($_POST['description']) ? trim($_POST['description']) : '';
+    $requirements = isset($_POST['requirements']) ? trim($_POST['requirements']) : '';
+    $responsibilities = isset($_POST['responsibilities']) ? trim($_POST['responsibilities']) : '';
+    $location = isset($_POST['location']) ? trim($_POST['location']) : '';
+    $job_type = isset($_POST['job_type']) ? trim($_POST['job_type']) : 'full_time';
+    $salary_min = isset($_POST['salary_min']) && $_POST['salary_min'] !== '' ? trim($_POST['salary_min']) : null;
+    $salary_max = isset($_POST['salary_max']) && $_POST['salary_max'] !== '' ? trim($_POST['salary_max']) : null;
+    $status = isset($_POST['status']) ? trim($_POST['status']) : 'pending';
     $is_featured = isset($_POST['is_featured']) ? 1 : 0;
-    
-    // Check if status column exists
-    $check_status = $conn->query("SHOW COLUMNS FROM jobs LIKE 'status'");
-    $has_status = $check_status->num_rows > 0;
-    
-    // Check if is_featured column exists
-    $check_featured = $conn->query("SHOW COLUMNS FROM jobs LIKE 'is_featured'");
-    $has_featured = $check_featured->num_rows > 0;
     
     // Validate input
     if (empty($title) || empty($description) || empty($location) || empty($job_type)) {
         $error = "Required fields cannot be empty.";
     } else {
-        // Update job in database
+        // Build the base query
         $sql = "UPDATE jobs SET 
                 title = ?,
                 description = ?,
@@ -82,33 +75,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 salary_min = ?,
                 salary_max = ?";
         
-        // Add status if column exists
+        // Prepare parameters array and types string
+        $params = [$title, $description, $requirements, $responsibilities, 
+                   $location, $job_type, $salary_min, $salary_max];
+        $types = "ssssssdd";
+        
+        // Check if status column exists and add to query if it does
+        $check_status = $conn->query("SHOW COLUMNS FROM jobs LIKE 'status'");
+        $has_status = $check_status->num_rows > 0;
+        
         if ($has_status) {
             $sql .= ", status = ?";
+            $params[] = $status;
+            $types .= "s";
         }
         
-        // Add is_featured if column exists
+        // Check if is_featured column exists and add to query if it does
+        $check_featured = $conn->query("SHOW COLUMNS FROM jobs LIKE 'is_featured'");
+        $has_featured = $check_featured->num_rows > 0;
+        
         if ($has_featured) {
             $sql .= ", is_featured = ?";
+            $params[] = $is_featured;
+            $types .= "i";
         }
         
+        // Complete the query
         $sql .= " WHERE id = ?";
+        $params[] = $job_id;
+        $types .= "i";
         
+        // Prepare and execute the statement
         $stmt = $conn->prepare($sql);
         
-        if ($has_status && $has_featured) {
-            $stmt->bind_param("ssssssddsiis", $title, $description, $requirements, $responsibilities, 
-                             $location, $job_type, $salary_min, $salary_max, $status, $is_featured, $job_id);
-        } elseif ($has_status) {
-            $stmt->bind_param("ssssssddss", $title, $description, $requirements, $responsibilities, 
-                             $location, $job_type, $salary_min, $salary_max, $status, $job_id);
-        } elseif ($has_featured) {
-            $stmt->bind_param("ssssssddis", $title, $description, $requirements, $responsibilities, 
-                             $location, $job_type, $salary_min, $salary_max, $is_featured, $job_id);
-        } else {
-            $stmt->bind_param("ssssssddis", $title, $description, $requirements, $responsibilities, 
-                             $location, $job_type, $salary_min, $salary_max, $job_id);
-        }
+        // Add all parameters at once using spread operator
+        $stmt->bind_param($types, ...$params);
         
         if ($stmt->execute()) {
             $success = "Job updated successfully!";
@@ -183,20 +184,20 @@ include '../includes/admin_header.php';
                         </div>
                         
                         <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="location" class="form-label">Location <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="location" name="location" value="<?php echo htmlspecialchars($job['location']); ?>" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="job_type" class="form-label">Job Type <span class="text-danger">*</span></label>
-                                <select class="form-select" id="job_type" name="job_type" required>
-                                    <option value="full_time" <?php echo $job['job_type'] === 'full_time' ? 'selected' : ''; ?>>Full Time</option>
-                                    <option value="part_time" <?php echo $job['job_type'] === 'part_time' ? 'selected' : ''; ?>>Part Time</option>
-                                    <option value="contract" <?php echo $job['job_type'] === 'contract' ? 'selected' : ''; ?>>Contract</option>
-                                    <option value="internship" <?php echo $job['job_type'] === 'internship' ? 'selected' : ''; ?>>Internship</option>
-                                    <option value="remote" <?php echo $job['job_type'] === 'remote' ? 'selected' : ''; ?>>Remote</option>
-                                </select>
-                            </div>
+                        <div class="col-md-6">
+    <label for="job_type" class="form-label">Job Type <span class="text-danger">*</span></label>
+    <select class="form-select" id="job_type" name="job_type" required>
+        <?php 
+        // Define the default job type
+        $current_job_type = $job['job_type'] ?? 'full_time'; 
+        ?>
+        <option value="full_time" <?php echo $current_job_type === 'full_time' ? 'selected' : ''; ?>>Full Time</option>
+        <option value="part_time" <?php echo $current_job_type === 'part_time' ? 'selected' : ''; ?>>Part Time</option>
+        <option value="contract" <?php echo $current_job_type === 'contract' ? 'selected' : ''; ?>>Contract</option>
+        <option value="internship" <?php echo $current_job_type === 'internship' ? 'selected' : ''; ?>>Internship</option>
+        <option value="remote" <?php echo $current_job_type === 'remote' ? 'selected' : ''; ?>>Remote</option>
+    </select>
+</div>
                         </div>
                         
                         <div class="row mb-3">
@@ -207,6 +208,14 @@ include '../includes/admin_header.php';
                             <div class="col-md-6">
                                 <label for="salary_max" class="form-label">Maximum Salary</label>
                                 <input type="number" class="form-control" id="salary_max" name="salary_max" value="<?php echo htmlspecialchars($job['salary_max'] ?? ''); ?>">
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="location" class="form-label">Location <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="location" name="location" 
+                                       value="<?php echo htmlspecialchars($job['location'] ?? ''); ?>" required>
                             </div>
                         </div>
                         

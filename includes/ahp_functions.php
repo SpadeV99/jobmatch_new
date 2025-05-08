@@ -208,6 +208,123 @@ function calculateExperienceMatch($requiredExperience, $userExperience) {
 }
 
 /**
+ * Calculate job match score between a job seeker and job using AHP criteria
+ * 
+ * @param array $jobseeker_data The job seeker's profile and preferences
+ * @param array $job The job listing data
+ * @param array $weights The calculated AHP weights for different criteria
+ * @return float Match score between 0-100
+ */
+function calculateJobMatchScore($jobseeker_data, $job, $weights) {
+    $score = 0;
+    $max_score = 0;
+    
+    // Skills match - compare job seeker skills with job requirements
+    if (isset($weights['skills']) && $weights['skills'] > 0) {
+        $skills_weight = $weights['skills'];
+        $max_score += $skills_weight * 100;
+        
+        if (!empty($jobseeker_data['skills']) && !empty($job['requirements'])) {
+            $jobseeker_skills = explode(',', strtolower($jobseeker_data['skills']));
+            $job_skills = explode(',', strtolower($job['requirements']));
+            
+            $matched_skills = 0;
+            foreach ($jobseeker_skills as $skill) {
+                $skill = trim($skill);
+                if (!empty($skill)) {
+                    foreach ($job_skills as $job_skill) {
+                        if (strpos(trim($job_skill), $skill) !== false) {
+                            $matched_skills++;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            $skills_score = ($matched_skills > 0 && count($job_skills) > 0) ? 
+                            ($matched_skills / count($job_skills)) * 100 * $skills_weight : 0;
+            $score += $skills_score;
+        }
+    }
+    
+    // Location match
+    if (isset($weights['location']) && $weights['location'] > 0) {
+        $location_weight = $weights['location'];
+        $max_score += $location_weight * 100;
+        
+        if (!empty($jobseeker_data['preferred_locations']) && !empty($job['location'])) {
+            $preferred_locations = explode(',', strtolower($jobseeker_data['preferred_locations']));
+            $job_location = strtolower($job['location']);
+            
+            $location_match = false;
+            foreach ($preferred_locations as $location) {
+                if (strpos($job_location, trim($location)) !== false) {
+                    $location_match = true;
+                    break;
+                }
+            }
+            
+            $location_score = $location_match ? 100 * $location_weight : 0;
+            $score += $location_score;
+        }
+    }
+    
+    // Job type match
+    if (isset($weights['job_type']) && $weights['job_type'] > 0) {
+        $job_type_weight = $weights['job_type'];
+        $max_score += $job_type_weight * 100;
+        
+        if (!empty($jobseeker_data['preferred_job_type']) && !empty($job['job_type'])) {
+            $job_type_score = ($jobseeker_data['preferred_job_type'] === $job['job_type']) ? 
+                               100 * $job_type_weight : 0;
+            $score += $job_type_score;
+        }
+    }
+    
+    // Salary match
+    if (isset($weights['salary']) && $weights['salary'] > 0) {
+        $salary_weight = $weights['salary'];
+        $max_score += $salary_weight * 100;
+        
+        if (!empty($jobseeker_data['preferred_salary_min']) && 
+            (!empty($job['salary_min']) || !empty($job['salary_max']))) {
+            
+            $preferred_min = floatval($jobseeker_data['preferred_salary_min']);
+            $job_min = !empty($job['salary_min']) ? floatval($job['salary_min']) : 0;
+            $job_max = !empty($job['salary_max']) ? floatval($job['salary_max']) : $job_min * 1.5;
+            
+            // Calculate how well the job's salary matches the job seeker's preferences
+            if ($job_max >= $preferred_min) {
+                $salary_score = 100 * $salary_weight;
+            } else {
+                $salary_ratio = $job_max / $preferred_min;
+                $salary_score = min(100, $salary_ratio * 100) * $salary_weight;
+            }
+            
+            $score += $salary_score;
+        }
+    }
+    
+    // Industry match
+    if (isset($weights['industry']) && $weights['industry'] > 0) {
+        $industry_weight = $weights['industry'];
+        $max_score += $industry_weight * 100;
+        
+        if (!empty($jobseeker_data['preferred_industry']) && !empty($job['industry'])) {
+            $industry_score = ($jobseeker_data['preferred_industry'] === $job['industry']) ? 
+                              100 * $industry_weight : 0;
+            $score += $industry_score;
+        }
+    }
+    
+    // Calculate final percentage score
+    $final_score = ($max_score > 0) ? ($score / $max_score) * 100 : 50;
+    
+    // Ensure the score is between 0 and 100
+    return max(0, min(100, $final_score));
+}
+
+/**
  * Get job recommendations for a user based on AHP algorithm
  */
 function getAHPJobRecommendations($userId, $limit = 10) {

@@ -1,5 +1,5 @@
 <?php
-
+// filepath: c:\laragon\www\jobmatch_new\admin\update_user_status_table.php
 require_once '../config/db_connect.php';
 
 echo "<h2>Creating User Status Table</h2>";

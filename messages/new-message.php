@@ -2,6 +2,12 @@
 require_once '../config/db_connect.php';
 require_once '../includes/functions.php';
 
+// Redirect to compose.php with the same parameters to maintain compatibility
+$query = http_build_query($_GET);
+$redirect = "compose.php" . ($query ? "?$query" : "");
+header("Location: $redirect");
+exit();
+
 // Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
