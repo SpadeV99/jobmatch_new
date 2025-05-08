@@ -133,8 +133,10 @@ include '../includes/header.php';
                                             <td>
                                                 <strong><?php echo htmlspecialchars($job['title']); ?></strong>
                                                 <div class="small text-muted">
-                                                    <?php echo htmlspecialchars($job['location']); ?> | 
-                                                    <?php echo htmlspecialchars($job['job_type']); ?>
+                                                    <?php echo htmlspecialchars($job['location']); ?>
+                                                    <?php if(isset($job['job_type']) && $job['job_type']): ?> 
+                                                        | <?php echo htmlspecialchars($job['job_type']); ?>
+                                                    <?php endif; ?>
                                                 </div>
                                             </td>
                                             <td>

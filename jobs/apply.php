@@ -15,17 +15,15 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'jobseeker') {
 }
 
 $user_id = $_SESSION['user_id'];
-$job_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+$job_id = isset($_GET['job_id']) ? intval($_GET['job_id']) : 0;
 
 // Check if job exists
-$sql = "SELECT j.*, c.name as category_name, 
-        u.username as employer_username, ep.company_name,
-        (SELECT COUNT(*) FROM job_applications WHERE job_id = j.id) as application_count
-        FROM jobs j
+$sql = "SELECT j.*, e.company_name, e.logo_path,
+        c.name as category_name
+        FROM jobs j 
+        LEFT JOIN employer_profiles e ON j.employer_id = e.user_id
         LEFT JOIN job_categories c ON j.category_id = c.id
-        LEFT JOIN users u ON j.employer_id = u.id
-        LEFT JOIN employer_profiles ep ON u.id = ep.user_id
-        WHERE j.id = ? AND j.status = 'active'";
+        WHERE j.id = ?";
 
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $job_id);
@@ -142,35 +140,16 @@ include '../includes/header.php';
                 <h5 class="card-title">Application Form</h5>
                 <p class="text-muted">Please login first to apply for this job</p>
                 
-                <form action="process_application.php" method="post" enctype="multipart/form-data">
+                <form action="<?php echo $_SERVER['PHP_SELF'] . '?job_id=' . $job_id; ?>" method="post">
                     <input type="hidden" name="job_id" value="<?php echo $job_id; ?>">
                     
                     <div class="mb-3">
-                        <label for="name" class="form-label">Full Name</label>
-                        <input type="text" class="form-control" id="name" name="name" required>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email</label>
-                        <input type="email" class="form-control" id="email" name="email" required>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="phone" class="form-label">Phone</label>
-                        <input type="text" class="form-control" id="phone" name="phone" required>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="resume" class="form-label">Resume (PDF)</label>
-                        <input type="file" class="form-control" id="resume" name="resume" accept=".pdf" required>
-                    </div>
-                    
-                    <div class="mb-3">
                         <label for="cover_letter" class="form-label">Cover Letter</label>
-                        <textarea class="form-control" id="cover_letter" name="cover_letter" rows="4" required></textarea>
+                        <textarea class="form-control" id="cover_letter" name="cover_letter" rows="6" required 
+                            placeholder="Explain why you're a good fit for this position..."><?php echo isset($_POST['cover_letter']) ? htmlspecialchars($_POST['cover_letter']) : ''; ?></textarea>
                     </div>
                     
-                    <button type="submit" class="btn btn-primary">Submit Application</button>
+                    <button type="submit" class="btn btn-primary w-100">Submit Application</button>
                 </form>
             </div>
         </div>

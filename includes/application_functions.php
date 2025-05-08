@@ -2,7 +2,7 @@
 /**
  * Update application status and record in history
  */
-function updateApplicationStatus($applicationId, $status, $notes, $userId) {
+function updateApplicationStatus($applicationId, $status, $notes, $userId, $notifyUser = true) {
     global $conn;
     
     // Start transaction
@@ -22,6 +22,18 @@ function updateApplicationStatus($applicationId, $status, $notes, $userId) {
         $historyStmt = $conn->prepare($historySql);
         $historyStmt->bind_param("issi", $applicationId, $status, $notes, $userId);
         $historyStmt->execute();
+        
+        // Additional actions for specific statuses
+        if ($status == 'hired') {
+            // Mark the job as filled
+            $jobSql = "UPDATE jobs j 
+                        JOIN job_applications a ON j.id = a.job_id 
+                        SET j.status = 'filled' 
+                        WHERE a.id = ?";
+            $jobStmt = $conn->prepare($jobSql);
+            $jobStmt->bind_param("i", $applicationId);
+            $jobStmt->execute();
+        }
         
         // Commit transaction
         $conn->commit();

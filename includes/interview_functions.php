@@ -9,12 +9,14 @@
 function scheduleInterview($job_id, $application_id, $employer_id, $jobseeker_id, $interview_date, $duration_minutes, $interview_type, $location, $meeting_link) {
     global $conn;
     
+    // Add status='scheduled' to the SQL insert
     $sql = "INSERT INTO interviews 
-            (job_id, job_application_id, employer_id, jobseeker_id, interview_date, 
-            duration_minutes, interview_type, location, meeting_link) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            (job_id, application_id, employer_id, jobseeker_id, interview_date, 
+            duration_minutes, interview_type, location, meeting_link, status) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')";
     
     $stmt = $conn->prepare($sql);
+    // Add the status parameter
     $stmt->bind_param("iiiisisss", $job_id, $application_id, $employer_id, 
                     $jobseeker_id, $interview_date, $duration_minutes, 
                     $interview_type, $location, $meeting_link);
@@ -23,7 +25,7 @@ function scheduleInterview($job_id, $application_id, $employer_id, $jobseeker_id
         $interview_id = $conn->insert_id;
         
         // Update application status
-        $sql = "UPDATE job_applications SET status = 'interview' WHERE id = ?";
+        $sql = "UPDATE job_applications SET status = 'interview_scheduled' WHERE id = ?";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("i", $application_id);
         $stmt->execute();

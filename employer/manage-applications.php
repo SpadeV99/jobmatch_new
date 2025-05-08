@@ -35,24 +35,24 @@ if (isset($_POST['action']) && isset($_POST['application_id'])) {
     if ($result->num_rows > 0) {
         switch ($action) {
             case 'shortlist':
-                updateApplicationStatus($application_id, 'shortlisted', $note);
+                updateApplicationStatus($application_id, 'shortlisted', $note, $employer_id);
                 $success_message = "Application shortlisted successfully.";
                 break;
             case 'reject':
-                updateApplicationStatus($application_id, 'rejected', $note);
+                updateApplicationStatus($application_id, 'rejected', $note, $employer_id);
                 $success_message = "Application rejected successfully.";
                 break;
             case 'interview':
                 // Just mark for interview here, scheduling is done on another page
-                updateApplicationStatus($application_id, 'interview', $note);
+                updateApplicationStatus($application_id, 'interview', $note, $employer_id);
                 $success_message = "Application marked for interview. <a href='schedule-interview.php?application_id=$application_id'>Schedule now</a>";
                 break;
             case 'offer':
-                updateApplicationStatus($application_id, 'offer', $note);
+                updateApplicationStatus($application_id, 'offer', $note, $employer_id);
                 $success_message = "Offer extended to applicant.";
                 break;
             case 'hire':
-                updateApplicationStatus($application_id, 'hired', $note);
+                updateApplicationStatus($application_id, 'hired', $note, $employer_id);
                 $success_message = "Applicant marked as hired.";
                 break;
         }
@@ -85,14 +85,16 @@ if (!empty($status)) {
 }
 
 // Get employer's applications
-$sql = "SELECT a.*, j.title as job_title, j.location as job_location,
-        u.username, jp.first_name, jp.last_name, jp.email, jp.phone, jp.resume_path
+$sql = "SELECT a.*, a.apply_date as applied_date, j.title as job_title, 
+        j.location as job_location,
+        u.username, u.email, /* Email from users table */
+        jp.first_name, jp.last_name, jp.phone, jp.resume_path
         FROM job_applications a 
         JOIN jobs j ON a.job_id = j.id
         JOIN users u ON a.user_id = u.id
         JOIN jobseeker_profiles jp ON a.user_id = jp.user_id
         WHERE j.employer_id = ? $job_filter $status_filter
-        ORDER BY a.applied_date DESC";
+        ORDER BY a.apply_date DESC";
 
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $employer_id);
@@ -276,8 +278,7 @@ include '../includes/header.php';
                                             <td>
                                                 <?php echo htmlspecialchars($app['job_title']); ?>
                                                 <div class="small text-muted">
-                                                    <?php echo htmlspecialchars($app['job_location']); ?> | 
-                                                    <?php echo htmlspecialchars($app['job_type']); ?>
+                                                    <?php echo htmlspecialchars($app['job_location']); ?>
                                                 </div>
                                             </td>
                                             <td>
@@ -291,15 +292,19 @@ include '../includes/header.php';
                                             </td>
                                             <td>
                                                 <?php
-                                                $status_badge = 'secondary';
-                                                switch ($app['status']) {
-                                                    case 'new': $status_badge = 'primary'; break;
-                                                    case 'shortlisted': $status_badge = 'info'; break;
-                                                    case 'rejected': $status_badge = 'danger'; break;
-                                                    case 'interview': $status_badge = 'warning'; break;
-                                                    case 'offer': $status_badge = 'success'; break;
-                                                    case 'hired': $status_badge = 'success'; break;
-                                                }
+                                               $status_badge = 'secondary';
+                                               switch ($app['status']) {
+                                                   case 'pending': $status_badge = 'primary'; break;
+                                                   case 'shortlisted': $status_badge = 'info'; break;
+                                                   case 'rejected': $status_badge = 'danger'; break;
+                                                   case 'interview': $status_badge = 'warning'; break; // Changed from "interviewed" to "interview"
+                                                   case 'interviewed': $status_badge = 'warning'; break; // Keep this for backward compatibility
+                                                   case 'offer': $status_badge = 'success'; break; // Changed from "offered" to "offer"
+                                                   case 'offered': $status_badge = 'success'; break; // Keep for backward compatibility
+                                                   case 'hired': $status_badge = 'success'; break;
+                                                   case 'withdrawn': $status_badge = 'secondary'; break;
+                                                   default: $status_badge = 'secondary';
+                                               }
                                                 ?>
                                                 <span class="badge bg-<?php echo $status_badge; ?>">
                                                     <?php echo ucfirst($app['status']); ?>

@@ -384,4 +384,55 @@ function getUserAssessmentStats($userId) {
     
     return $result->fetch_assoc();
 }
+
+/**
+ * Check if a job requires an assessment
+ * @param int $job_id The job ID to check
+ * @return mixed False if no assessment required, or the assessment ID if required
+ */
+function jobRequiresAssessment($job_id) {
+    global $conn;
+    
+    $stmt = $conn->prepare("SELECT id FROM assessments WHERE job_id = ? AND status = 'active' LIMIT 1");
+    $stmt->bind_param("i", $job_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result->num_rows > 0) {
+        $row = $result->fetch_assoc();
+        return $row['id'];
+    }
+    
+    return false;
+}
+
+/**
+ * Check if user has passed an assessment for a specific job
+ * @param int $user_id The user ID
+ * @param int $job_id The job ID
+ * @return bool True if passed, false otherwise
+ */
+function hasPassedJobAssessment($user_id, $job_id) {
+    global $conn;
+    
+    // Get the assessment ID for this job
+    $assessment_id = jobRequiresAssessment($job_id);
+    if (!$assessment_id) {
+        return true; // No assessment required means automatically passed
+    }
+    
+    // Check for a passing submission
+    $stmt = $conn->prepare("SELECT s.id, s.score, a.passing_score 
+                           FROM assessment_submissions s
+                           JOIN assessments a ON s.assessment_id = a.id
+                           WHERE s.user_id = ? AND s.assessment_id = ? 
+                           AND s.score >= a.passing_score
+                           LIMIT 1");
+    
+    $stmt->bind_param("ii", $user_id, $assessment_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    return $result->num_rows > 0;
+}
 ?>

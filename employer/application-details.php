@@ -32,12 +32,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_status'])) {
 }
 
 // Get application details
-$query = "SELECT ja.*, j.title as job_title, j.location as job_location, j.salary,
-          u.username as applicant_name, js.resume_path, js.phone, js.email
+$query = "SELECT ja.*, j.title as job_title, j.location as job_location, 
+          js.first_name, js.last_name, u.email, js.phone, js.resume_path,
+          js.skills, js.experience, js.education
           FROM job_applications ja
           JOIN jobs j ON ja.job_id = j.id
+          JOIN jobseeker_profiles js ON ja.user_id = js.user_id
           JOIN users u ON ja.user_id = u.id
-          LEFT JOIN jobseeker_profiles js ON u.id = js.user_id
           WHERE ja.id = ? AND j.employer_id = ?";
 
 $stmt = $conn->prepare($query);
@@ -96,10 +97,31 @@ include '../includes/header.php';
                     <span class="badge bg-<?php echo getStatusBadgeClass($application['status']); ?>"><?php echo ucfirst($application['status']); ?></span>
                 </div>
                 <div class="card-body">
-                    <h5 class="card-title"><?php echo htmlspecialchars($application['job_title']); ?></h5>
+                    <h5 class="card-title">
+                        <?php 
+                        // Construct name from first_name and last_name
+                        $applicant_name = '';
+                        if (isset($application['first_name'])) {
+                            $applicant_name .= $application['first_name'];
+                        }
+                        if (isset($application['last_name'])) {
+                            $applicant_name .= ' ' . $application['last_name'];
+                        }
+                        echo htmlspecialchars(trim($applicant_name) ?: 'Applicant');
+                        ?>
+                    </h5>
                     <p class="text-muted">
                         <i class="bi bi-geo-alt"></i> <?php echo htmlspecialchars($application['job_location']); ?> | 
-                        <i class="bi bi-cash"></i> <?php echo htmlspecialchars($application['salary']); ?>
+                        <li class="list-group-item">
+                            <strong>Salary:</strong>
+                            <?php 
+                            if (isset($job['salary']) && $job['salary']) {
+                                echo htmlspecialchars($job['salary']);
+                            } else {
+                                echo '<span class="text-muted">Not specified</span>';
+                            }
+                            ?>
+                        </li>
                     </p>
                     
                     <hr>
@@ -107,12 +129,27 @@ include '../includes/header.php';
                     <div class="row">
                         <div class="col-md-6">
                             <h5>Applicant Information</h5>
-                            <p><strong>Name:</strong> <?php echo htmlspecialchars($application['applicant_name']); ?></p>
+                            <p><strong>Name:</strong> <?php 
+    $applicant_name = '';
+    if (isset($application['first_name'])) {
+        $applicant_name .= $application['first_name'];
+    }
+    if (isset($application['last_name'])) {
+        $applicant_name .= ' ' . $application['last_name'];
+    }
+    echo htmlspecialchars(trim($applicant_name) ?: 'N/A'); 
+?></p>
                             <p><strong>Email:</strong> <?php echo htmlspecialchars($application['email'] ?? 'N/A'); ?></p>
                             <p><strong>Phone:</strong> <?php echo htmlspecialchars($application['phone'] ?? 'N/A'); ?></p>
                             <?php if (!empty($application['resume_path'])): ?>
                                 <p><a href="<?php echo '../' . $application['resume_path']; ?>" target="_blank" class="btn btn-outline-primary">View Resume</a></p>
                             <?php endif; ?>
+                            <a href="../messages/compose.php?recipient_id=<?php echo $application['jobseeker_id']; ?>" class="btn btn-outline-primary">
+                                <i class="bi bi-chat-dots"></i> Message Applicant
+                            </a>
+                            <a href="../messages/new-message.php?recipient_id=<?php echo $application['user_id']; ?>" class="btn btn-outline-primary mb-3">
+                                <i class="bi bi-chat-dots"></i> Message Applicant
+                            </a>
                         </div>
                         <div class="col-md-6">
                             <h5>Application Details</h5>

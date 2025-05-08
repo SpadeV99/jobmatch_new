@@ -1,7 +1,6 @@
 <?php
 require_once '../config/db_connect.php';
 require_once '../includes/functions.php';
-require_once '../includes/messaging_functions.php';
 
 // Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
@@ -16,30 +15,33 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 $user_type = $_SESSION['user_type'];
-$conversation_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+$base_path = '../';
+$active_page = 'messages';
 
-// Verify user has access to this conversation
-$sql = "SELECT * FROM conversations WHERE id = ? AND (user1_id = ? OR user2_id = ?)";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("iii", $conversation_id, $user_id, $user_id);
-$stmt->execute();
-$result = $stmt->get_result();
-
-if ($result->num_rows === 0) {
-    // Redirect if conversation doesn't exist or user doesn't have access
+// Check if conversation ID is provided
+if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     header("Location: index.php");
     exit();
 }
 
-$conversation = $result->fetch_assoc();
+$conversation_id = intval($_GET['id']);
 
-// Identify the other user in conversation
-$other_user_id = ($conversation['user1_id'] == $user_id) ? 
-                  $conversation['user2_id'] : 
-                  $conversation['user1_id'];
+// Verify the user is part of this conversation
+$sql = "SELECT * FROM conversations WHERE id = ? AND (user1_id = ? OR user2_id = ?)";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("iii", $conversation_id, $user_id, $user_id);
+$stmt->execute();
+$conversation = $stmt->get_result()->fetch_assoc();
+
+if (!$conversation) {
+    header("Location: index.php");
+    exit();
+}
 
 // Get other user's details
-$sql = "SELECT u.username, u.user_type,
+$other_user_id = ($conversation['user1_id'] == $user_id) ? $conversation['user2_id'] : $conversation['user1_id'];
+
+$sql = "SELECT u.id, u.username, u.user_type, 
         CASE 
             WHEN u.user_type = 'employer' THEN ep.company_name
             ELSE CONCAT(jp.first_name, ' ', jp.last_name)
@@ -51,142 +53,112 @@ $sql = "SELECT u.username, u.user_type,
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $other_user_id);
 $stmt->execute();
-$result = $stmt->get_result();
-$other_user = $result->fetch_assoc();
+$other_user = $stmt->get_result()->fetch_assoc();
 
-// Process new message submission
-$success_message = '';
-$error_message = '';
-
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['send_message'])) {
-    $message_text = trim($_POST['message']);
+// Handle new message submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message']) && trim($_POST['message']) !== '') {
+    $message = trim($_POST['message']);
     
-    if (!empty($message_text)) {
-        if (sendMessage($conversation_id, $user_id, $message_text)) {
-            // Success - no need for message as we'll just update the chat display
-            // Redirect to prevent form resubmission
-            header("Location: conversation.php?id=" . $conversation_id);
-            exit();
-        } else {
-            $error_message = "Failed to send message. Please try again.";
-        }
-    } else {
-        $error_message = "Message cannot be empty.";
+    $sql = "INSERT INTO messages (conversation_id, sender_id, message) VALUES (?, ?, ?)";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("iis", $conversation_id, $user_id, $message);
+    
+    if ($stmt->execute()) {
+        // Update conversation timestamp
+        $sql = "UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $conversation_id);
+        $stmt->execute();
     }
+    
+    // Redirect to prevent form resubmission
+    header("Location: conversation.php?id=" . $conversation_id);
+    exit();
 }
 
-// Get messages
-$messages = getConversationMessages($conversation_id, $user_id);
+// Mark messages as read
+$sql = "UPDATE messages SET is_read = 1 WHERE conversation_id = ? AND sender_id != ? AND is_read = 0";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("ii", $conversation_id, $user_id);
+$stmt->execute();
 
-$base_path = '../';
+// Get messages for this conversation
+$sql = "SELECT m.*, u.username, u.user_type FROM messages m
+        JOIN users u ON m.sender_id = u.id
+        WHERE m.conversation_id = ?
+        ORDER BY m.created_at ASC";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("i", $conversation_id);
+$stmt->execute();
+$messages = $stmt->get_result();
+
 include '../includes/header.php';
 ?>
 
 <div class="container py-4">
     <div class="row">
-        <!-- Sidebar navigation -->
         <div class="col-md-3">
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">Navigation</h5>
                 </div>
                 <div class="list-group list-group-flush">
                     <?php if ($user_type === 'jobseeker'): ?>
                         <a href="../user/dashboard.php" class="list-group-item list-group-item-action">Dashboard</a>
-                        <a href="../user/profile.php" class="list-group-item list-group-item-action">My Profile</a>
-                        <a href="../user/applications.php" class="list-group-item list-group-item-action">Job Applications</a>
+                        <a href="../user/profile.php" class="list-group-item list-group-item-action">Profile</a>
+                        <a href="../user/applications.php" class="list-group-item list-group-item-action">Applications</a>
                     <?php else: ?>
-                        <a href="../employer/index.php" class="list-group-item list-group-item-action">Dashboard</a>
-                        <a href="../employer/post-job.php" class="list-group-item list-group-item-action">Post a Job</a>
-                        <a href="../employer/manage-applications.php" class="list-group-item list-group-item-action">Applications</a>
+                        <a href="../employer/dashboard.php" class="list-group-item list-group-item-action">Dashboard</a>
+                        <a href="../employer/profile.php" class="list-group-item list-group-item-action">Company Profile</a>
+                        <a href="../employer/manage-jobs.php" class="list-group-item list-group-item-action">Manage Jobs</a>
                     <?php endif; ?>
                     <a href="index.php" class="list-group-item list-group-item-action active">Messages</a>
                 </div>
             </div>
-            
+        </div>
+        
+        <div class="col-md-9">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">All Conversations</h5>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        Conversation with <?php echo htmlspecialchars($other_user['display_name'] ?: $other_user['username']); ?>
+                        <?php if ($other_user['user_type'] === 'employer'): ?>
+                            <span class="badge bg-primary">Employer</span>
+                        <?php else: ?>
+                            <span class="badge bg-success">Job Seeker</span>
+                        <?php endif; ?>
+                    </h5>
+                    <a href="index.php" class="btn btn-outline-secondary btn-sm">Back to Messages</a>
                 </div>
-                <div class="card-body p-0">
-                    <div class="list-group list-group-flush">
-                        <?php 
-                        $all_conversations = getUserConversations($user_id);
-                        foreach ($all_conversations as $conv): 
-                        ?>
-                            <a href="conversation.php?id=<?php echo $conv['id']; ?>" 
-                               class="list-group-item list-group-item-action <?php echo $conv['id'] == $conversation_id ? 'active' : ''; ?>">
-                                <?php echo htmlspecialchars($conv['other_username']); ?>
-                                <?php if ($conv['unread_count'] > 0 && $conv['id'] != $conversation_id): ?>
-                                    <span class="badge bg-danger float-end"><?php echo $conv['unread_count']; ?></span>
-                                <?php endif; ?>
-                            </a>
-                        <?php endforeach; ?>
-                        
-                        <?php if (count($all_conversations) === 0): ?>
-                            <div class="list-group-item">No conversations</div>
+                <div class="card-body">
+                    <div class="message-container" style="height: 400px; overflow-y: auto;">
+                        <?php if ($messages->num_rows > 0): ?>
+                            <?php while($msg = $messages->fetch_assoc()): ?>
+                                <div class="message mb-3 <?php echo ($msg['sender_id'] == $user_id) ? 'text-end' : ''; ?>">
+                                    <div class="message-content d-inline-block p-3 rounded 
+                                        <?php echo ($msg['sender_id'] == $user_id) ? 'bg-primary text-white' : 'bg-light'; ?>" 
+                                        style="max-width: 80%;">
+                                        <?php echo nl2br(htmlspecialchars($msg['message'])); ?>
+                                    </div>
+                                    <div class="message-meta small text-muted">
+                                        <?php echo date('M j, Y g:i a', strtotime($msg['created_at'])); ?>
+                                    </div>
+                                </div>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <div class="text-center text-muted py-5">
+                                <p>No messages yet. Start the conversation!</p>
+                            </div>
                         <?php endif; ?>
                     </div>
                 </div>
-            </div>
-        </div>
-        
-        <!-- Main content - chat -->
-        <div class="col-md-9">
-            <?php if (!empty($error_message)): ?>
-                <div class="alert alert-danger"><?php echo $error_message; ?></div>
-            <?php endif; ?>
-            
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <div>
-                        <h4 class="mb-0">
-                            <?php echo htmlspecialchars($other_user['display_name'] ?? $other_user['username']); ?>
-                        </h4>
-                        <small class="text-muted">
-                            <?php echo ucfirst($other_user['user_type']); ?>
-                        </small>
-                    </div>
-                    <a href="index.php" class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-arrow-left"></i> Back to Messages
-                    </a>
-                </div>
-                <div class="card-body">
-                    <!-- Message history -->
-                    <div class="chat-container mb-4" style="height: 400px; overflow-y: auto; display: flex; flex-direction: column-reverse;">
-                        <div class="chat-messages">
-                            <?php if (count($messages) === 0): ?>
-                                <div class="text-center text-muted my-4">
-                                    <p>No messages yet. Start the conversation!</p>
-                                </div>
-                            <?php else: ?>
-                                <?php foreach ($messages as $message): ?>
-                                    <div class="mb-3 <?php echo $message['sender_id'] == $user_id ? 'text-end' : ''; ?>">
-                                        <div class="d-inline-block p-2 px-3 rounded-3 
-                                            <?php echo $message['sender_id'] == $user_id ? 
-                                                'bg-primary text-white' : 'bg-light'; ?>">
-                                            <?php echo nl2br(htmlspecialchars($message['message'])); ?>
-                                        </div>
-                                        <div class="small text-muted mt-1">
-                                            <?php echo date('M d, h:i A', strtotime($message['created_at'])); ?>
-                                            <?php if ($message['sender_id'] == $user_id && $message['is_read']): ?>
-                                                <i class="bi bi-check-all"></i>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
+                <div class="card-footer">
+                    <form method="post">
+                        <div class="form-group">
+                            <label for="message">New Message</label>
+                            <textarea class="form-control mb-2" id="message" name="message" rows="3" required></textarea>
                         </div>
-                    </div>
-                    
-                    <!-- Send message form -->
-                    <form method="post" action="">
-                        <div class="input-group">
-                            <textarea class="form-control" name="message" placeholder="Type your message..." rows="2"></textarea>
-                            <button type="submit" name="send_message" class="btn btn-primary">
-                                <i class="bi bi-send"></i> Send
-                            </button>
-                        </div>
+                        <button type="submit" class="btn btn-primary">Send Message</button>
                     </form>
                 </div>
             </div>
@@ -195,12 +167,10 @@ include '../includes/header.php';
 </div>
 
 <script>
-// Scroll to bottom of chat history on page load
+// Auto-scroll to bottom of messages when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    const chatContainer = document.querySelector('.chat-container');
-    if (chatContainer) {
-        chatContainer.scrollTop = 0; // Scroll to top which is actually the bottom due to flex-direction: column-reverse
-    }
+    const messageContainer = document.querySelector('.message-container');
+    messageContainer.scrollTop = messageContainer.scrollHeight;
 });
 </script>
 
